@@ -1,0 +1,79 @@
+@using GIBS.Module.FAQ.Services
+@using GIBS.Module.FAQ.Models
+
+@namespace GIBS.Module.FAQ
+@inherits ModuleBase
+@inject IFAQService ClientFAQService
+@inject NavigationManager NavigationManager
+@inject IStringLocalizer<Index> Localizer
+
+@if (_FAQs == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <ActionLink Action="Add" Security="SecurityAccessLevel.Edit" Text="Add FAQ" ResourceKey="Add" />
+    <br />
+    <br />
+    @if (@_FAQs.Count != 0)
+    {
+        <Pager Items="@_FAQs">
+            <Header>
+                <th style="width: 1px;">&nbsp;</th>
+                <th style="width: 1px;">&nbsp;</th>
+                <th>@Localizer["Name"]</th>
+            </Header>
+            <Row>
+                <td><ActionLink Action="Edit" Parameters="@($"id=" + context.FAQId.ToString())" ResourceKey="Edit"  /></td>
+                <td><ActionDialog Header="Delete FAQ" Message="Are You Sure You Wish To Delete This FAQ?" Action="Delete" Security="SecurityAccessLevel.Edit" Class="btn btn-danger" OnClick="@(async () => await Delete(context))" ResourceKey="Delete"  Id="@context.FAQId.ToString()" /></td>
+                <td>@context.Name</td>
+            </Row>
+        </Pager>
+    }
+    else
+    {
+        <p>@Localizer["Message.DisplayNone"]</p>
+    }
+}
+
+@code {
+    public override string RenderMode => RenderModes.Static;
+
+    public override List<Resource> Resources => new List<Resource>()
+    {
+        new Stylesheet("_content/GIBS.Module.FAQ/Module.css"),
+        new Script("_content/GIBS.Module.FAQ/Module.js")
+    };
+
+    List<FAQ> _FAQs;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _FAQs = await ClientFAQService.GetFAQsAsync(ModuleState.ModuleId);
+        }
+        catch (Exception ex)
+        {
+            await logger.LogError(ex, "Error Loading FAQ {Error}", ex.Message);
+            AddModuleMessage(Localizer["Message.LoadError"], MessageType.Error);
+        }
+    }
+
+    private async Task Delete(FAQ FAQ)
+    {
+        try
+        {
+            await ClientFAQService.DeleteFAQAsync(FAQ.FAQId, ModuleState.ModuleId);
+            await logger.LogInformation("FAQ Deleted {FAQ}", FAQ);
+            _FAQs = await ClientFAQService.GetFAQsAsync(ModuleState.ModuleId);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await logger.LogError(ex, "Error Deleting FAQ {FAQ} {Error}", FAQ, ex.Message);
+            AddModuleMessage(Localizer["Message.DeleteError"], MessageType.Error);
+        }
+    }
+}
