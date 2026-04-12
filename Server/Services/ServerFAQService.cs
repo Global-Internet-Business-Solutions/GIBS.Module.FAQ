@@ -97,5 +97,18 @@ namespace GIBS.Module.FAQ.Services
             }
             return Task.CompletedTask;
         }
+
+        public Task IncrementViewCountAsync(int FAQId, int ModuleId)
+        {
+            if (_userPermissions.IsAuthorized(_accessor.HttpContext.User, _alias.SiteId, EntityNames.Module, ModuleId, PermissionNames.View))
+            {
+                _FAQRepository.IncrementViewCount(FAQId);
+            }
+            else
+            {
+                _logger.Log(LogLevel.Error, this, LogFunction.Security, "Unauthorized FAQ ViewCount Increment Attempt {FAQId} {ModuleId}", FAQId, ModuleId);
+            }
+            return Task.CompletedTask;
+        }
     }
 }

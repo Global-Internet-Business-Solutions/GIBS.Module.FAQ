@@ -1,0 +1,234 @@
+@using Oqtane.Modules.Controls
+@using GIBS.Module.FAQ.Services
+@using GIBS.Module.FAQ.Models
+
+@namespace GIBS.Module.FAQ
+@inherits ModuleBase
+@inject ICategoryService ClientCategoryService
+@inject NavigationManager NavigationManager
+@inject IStringLocalizer<ManageCategory> Localizer
+
+<form @ref="form" class="@(validated ? " was-validated" : "needs-validation")" novalidate>
+    <div class="container">
+        <div class="row mb-1 align-items-center">
+            <Label Class="col-sm-3" For="name" HelpText="Enter a category name" ResourceKey="Name">Name: </Label>
+            <div class="col-sm-9">
+                <input id="name" class="form-control" @bind="@_name" @oninput="OnCategoryNameInput" required />
+            </div>
+        </div>
+        <div class="row mb-1 align-items-center">
+            <Label Class="col-sm-3" For="slug" HelpText="Enter a category slug" ResourceKey="Slug">Slug: </Label>
+            <div class="col-sm-9">
+                <input id="slug" class="form-control" @bind="@_slug" />
+            </div>
+        </div>
+        <div class="row mb-1 align-items-center">
+            <Label Class="col-sm-3" For="parentid" HelpText="Select parent category" ResourceKey="ParentId">Parent Id: </Label>
+            <div class="col-sm-9">
+                <select id="parentid" class="form-select" @bind="@_parentid">
+                    <option value="0">-- None --</option>
+                    @foreach (var category in _categories.Where(c => c.CategoryId != _id))
+                    {
+                        <option value="@category.CategoryId">@category.Name</option>
+                    }
+                </select>
+            </div>
+        </div>
+        <div class="row mb-1 align-items-center">
+            <Label Class="col-sm-3" For="sortorder" HelpText="Enter sort order" ResourceKey="SortOrder">Sort Order: </Label>
+            <div class="col-sm-9">
+                <input id="sortorder" type="number" class="form-control" @bind="@_sortorder" />
+            </div>
+        </div>
+        <div class="row mb-1 align-items-center">
+            <Label Class="col-sm-3" For="isactive" HelpText="Is this category active" ResourceKey="IsActive">Is Active: </Label>
+            <div class="col-sm-9">
+                <input id="isactive" type="checkbox" class="form-check-input" @bind="@_isactive" />
+            </div>
+        </div>
+    </div>
+
+    <button type="button" class="btn btn-success" @onclick="Save">@Localizer["Save"]</button>
+    <NavLink class="btn btn-secondary" href="@NavigateUrl()">@Localizer["Cancel"]</NavLink>
+</form>
+
+@if (_categories != null && _categories.Count > 0)
+{
+    <hr />
+    <h5>Existing Categories</h5>
+    <Pager Items="@_categories">
+        <Header>
+            <th style="width: 1px;">&nbsp;</th>
+            <th style="width: 1px;">&nbsp;</th>
+            <th>@Localizer["Name"]</th>
+            <th>@Localizer["Slug"]</th>
+            <th>@Localizer["SortOrder"]</th>
+            <th>@Localizer["IsActive"]</th>
+        </Header>
+        <Row>
+            <td><ActionLink Action="ManageCategory" IconName="pencil" IconOnly="true" Parameters="@($"id=" + context.CategoryId.ToString())" ResourceKey="Edit" /></td>
+            <td><ActionDialog Header="Delete Category" IconName="delete" IconOnly="true" Message="Are You Sure You Wish To Delete This Category?" Action="Delete" Security="SecurityAccessLevel.Edit" Class="btn btn-danger" OnClick="@(async () => await Delete(context))" ResourceKey="Delete" Id="@context.CategoryId.ToString()" /></td>
+            <td>@context.Name</td>
+            <td>@context.Slug</td>
+            <td>@context.SortOrder</td>
+            <td>@context.IsActive</td>
+        </Row>
+    </Pager>
+}
+
+@code {
+    public override SecurityAccessLevel SecurityAccessLevel => SecurityAccessLevel.Edit;
+
+    public override string Actions => "ManageCategory";
+
+    public override string Title => "Manage Categories";
+
+    public override List<Resource> Resources => new List<Resource>()
+    {
+        new Stylesheet("_content/GIBS.Module.FAQ/Module.css")
+    };
+
+    private ElementReference form;
+    private bool validated = false;
+
+    private int _id;
+    private string _name;
+    private string _slug;
+    private int _parentid;
+    private int _sortorder;
+    private bool _isactive = true;
+    private List<Category> _categories = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadCategories();
+
+            if (PageState.QueryString.ContainsKey("id") && int.TryParse(PageState.QueryString["id"], out _id))
+            {
+                var category = await ClientCategoryService.GetCategoryAsync(_id, ModuleState.ModuleId);
+                if (category != null)
+                {
+                    _name = category.Name;
+                    _slug = category.Slug;
+                    _parentid = category.ParentId;
+                    _sortorder = category.SortOrder;
+                    _isactive = category.IsActive;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await logger.LogError(ex, "Error Loading Categories {Error}", ex.Message);
+            AddModuleMessage(Localizer["Message.LoadError"], MessageType.Error);
+        }
+    }
+
+    private async Task LoadCategories()
+    {
+        _categories = await ClientCategoryService.GetCategoriesAsync(ModuleState.ModuleId);
+    }
+
+    private void OnCategoryNameInput(ChangeEventArgs e)
+    {
+        var value = e.Value?.ToString() ?? "";
+        _name = value;
+        _slug = GenerateSlug(value);
+    }
+
+    private string GenerateSlug(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return "";
+        // Convert to lower, replace spaces with '-', allow a-z and 0-9, remove other chars
+        var slug = new string(input.ToLower().Select(c =>
+            (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ? c :
+            (c == ' ' ? '-' : '\0')).Where(c => c != '\0').ToArray());
+        // Replace multiple dashes with single dash
+        slug = System.Text.RegularExpressions.Regex.Replace(slug, "-+", "-");
+        // Trim dashes
+        slug = slug.Trim('-');
+        return slug;
+    }
+
+    private async Task Save()
+    {
+        try
+        {
+            validated = true;
+            var interop = new Oqtane.UI.Interop(JSRuntime);
+            if (await interop.FormValid(form))
+            {
+                if (_id == 0)
+                {
+                    var category = new Category
+                    {
+                        ModuleId = ModuleState.ModuleId,
+                        Name = _name,
+                        Slug = string.IsNullOrWhiteSpace(_slug) ? (_name ?? string.Empty).Trim().ToLowerInvariant().Replace(" ", "-") : _slug,
+                        ParentId = _parentid,
+                        SortOrder = _sortorder,
+                        IsActive = _isactive
+                    };
+
+                    await ClientCategoryService.AddCategoryAsync(category);
+                    await logger.LogInformation("Category Added {Category}", category);
+                }
+                else
+                {
+                    var category = await ClientCategoryService.GetCategoryAsync(_id, ModuleState.ModuleId);
+                    if (category != null)
+                    {
+                        category.Name = _name;
+                        category.Slug = string.IsNullOrWhiteSpace(_slug) ? (_name ?? string.Empty).Trim().ToLowerInvariant().Replace(" ", "-") : _slug;
+                        category.ParentId = _parentid;
+                        category.SortOrder = _sortorder;
+                        category.IsActive = _isactive;
+                        await ClientCategoryService.UpdateCategoryAsync(category);
+                        await logger.LogInformation("Category Updated {Category}", category);
+                    }
+                }
+
+                await LoadCategories();
+                ResetForm();
+                StateHasChanged();
+            }
+            else
+            {
+                AddModuleMessage(Localizer["Message.SaveValidation"], MessageType.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            await logger.LogError(ex, "Error Saving Category {Error}", ex.Message);
+            AddModuleMessage(Localizer["Message.SaveError"], MessageType.Error);
+        }
+    }
+
+    private void ResetForm()
+    {
+        _id = 0;
+        _name = string.Empty;
+        _slug = string.Empty;
+        _parentid = 0;
+        _sortorder = 0;
+        _isactive = true;
+        validated = false;
+    }
+
+    private async Task Delete(Category category)
+    {
+        try
+        {
+            await ClientCategoryService.DeleteCategoryAsync(category.CategoryId, ModuleState.ModuleId);
+            await logger.LogInformation("Category Deleted {Category}", category);
+            await LoadCategories();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await logger.LogError(ex, "Error Deleting Category {Category} {Error}", category, ex.Message);
+            AddModuleMessage(Localizer["Message.DeleteError"], MessageType.Error);
+        }
+    }
+}

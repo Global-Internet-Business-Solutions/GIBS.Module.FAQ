@@ -56,7 +56,16 @@ namespace GIBS.Module.FAQ.Manager
             {
                 foreach(var FAQ in FAQs)
                 {
-                    _FAQRepository.AddFAQ(new Models.FAQ { ModuleId = module.ModuleId, Name = FAQ.Name });
+                    _FAQRepository.AddFAQ(new Models.FAQ 
+                    { 
+                        ModuleId = module.ModuleId, 
+                        Question = FAQ.Question,
+                        Answer = FAQ.Answer,
+                        CategoryId = FAQ.CategoryId,
+                        SortOrder = FAQ.SortOrder,
+                        Status = FAQ.Status,
+                        ViewCount = FAQ.ViewCount
+                    });
                 }
             }
         }
@@ -73,8 +82,8 @@ namespace GIBS.Module.FAQ.Manager
                    {
                        EntityName = "GIBSFAQ",
                        EntityId = FAQ.FAQId.ToString(),
-                       Title = FAQ.Name,
-                       Body = FAQ.Name,
+                       Title = FAQ.Question,
+                       Body = string.IsNullOrEmpty(FAQ.Answer) ? FAQ.Question : FAQ.Answer,
                        ContentModifiedBy = FAQ.ModifiedBy,
                        ContentModifiedOn = FAQ.ModifiedOn
                    });

@@ -14,5 +14,7 @@ namespace GIBS.Module.FAQ.Services
         Task<Models.FAQ> UpdateFAQAsync(Models.FAQ FAQ);
 
         Task DeleteFAQAsync(int FAQId, int ModuleId);
+
+        Task IncrementViewCountAsync(int FAQId, int ModuleId);
     }
 }

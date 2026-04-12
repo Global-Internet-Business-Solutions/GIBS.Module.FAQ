@@ -17,14 +17,20 @@ namespace GIBS.Module.FAQ.Migrations
 
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            var entityBuilder = new FAQEntityBuilder(migrationBuilder, ActiveDatabase);
-            entityBuilder.Create();
+            var categoryEntityBuilder = new CategoryEntityBuilder(migrationBuilder, ActiveDatabase);
+            categoryEntityBuilder.Create();
+
+            var faqEntityBuilder = new FAQEntityBuilder(migrationBuilder, ActiveDatabase);
+            faqEntityBuilder.Create();
         }
 
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            var entityBuilder = new FAQEntityBuilder(migrationBuilder, ActiveDatabase);
-            entityBuilder.Drop();
+            var faqEntityBuilder = new FAQEntityBuilder(migrationBuilder, ActiveDatabase);
+            faqEntityBuilder.Drop();
+
+            var categoryEntityBuilder = new CategoryEntityBuilder(migrationBuilder, ActiveDatabase);
+            categoryEntityBuilder.Drop();
         }
     }
 }

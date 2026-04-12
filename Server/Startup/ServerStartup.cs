@@ -22,6 +22,7 @@ namespace GIBS.Module.FAQ.Startup
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddTransient<IFAQService, ServerFAQService>();
+            services.AddTransient<ICategoryService, ServerCategoryService>();
             services.AddDbContextFactory<FAQContext>(opt => { }, ServiceLifetime.Transient);
         }
     }

@@ -5,19 +5,74 @@
 @namespace GIBS.Module.FAQ
 @inherits ModuleBase
 @inject IFAQService ClientFAQService
+@inject ICategoryService ClientCategoryService
 @inject NavigationManager NavigationManager
 @inject IStringLocalizer<Edit> Localizer
 
 <form @ref="form" class="@(validated ? " was-validated" : "needs-validation" )" novalidate>
     <div class="container">
         <div class="row mb-1 align-items-center">
-            <Label Class="col-sm-3" For="name" HelpText="Enter a name" ResourceKey="Name">Name: </Label>
+            <Label Class="col-sm-3" For="question" HelpText="Enter a question" ResourceKey="Question">Question: </Label>
             <div class="col-sm-9">
-                <input id="name" class="form-control" @bind="@_name" required />
+                <input id="question" class="form-control" @bind="@_question" required />
+            </div>
+        </div>
+        <div class="row mb-1 align-items-center">
+            <Label Class="col-sm-3" For="answer" HelpText="Enter an answer" ResourceKey="Answer">Answer: </Label>
+            <div class="col-sm-9">
+                <textarea id="answer" class="form-control" @bind="@_answer"></textarea>
+            </div>
+        </div>
+        <div class="row mb-1 align-items-center">
+            <Label Class="col-sm-3" For="categoryid" HelpText="Select a category" ResourceKey="CategoryId">Category: </Label>
+            <div class="col-sm-9">
+                <select id="categoryid" class="form-select" @bind="@_categoryid" @bind:after="OnCategoryChanged">
+                    <option value="0">-- Select Category --</option>
+                    <option value="-1">+ New Category...</option>
+                    @foreach (var category in _categories)
+                    {
+                        <option value="@category.CategoryId">@category.Name</option>
+                    }
+                </select>
+            </div>
+        </div>
+        @if (_categoryid == -1)
+        {
+            <div class="row mb-1 align-items-center">
+                <Label Class="col-sm-3" For="newcategoryname" HelpText="Enter a new category name" ResourceKey="NewCategory">New Category: </Label>
+                <div class="col-sm-7">
+                    <input id="newcategoryname" class="form-control" @bind="@_newCategoryName" />
+                </div>
+                <div class="col-sm-2">
+                    <button type="button" class="btn btn-outline-primary" @onclick="CreateCategory">Create</button>
+                </div>
+            </div>
+        }
+        <div class="row mb-1 align-items-center">
+            <Label Class="col-sm-3" For="sortorder" HelpText="Enter a sort order" ResourceKey="SortOrder">Sort Order: </Label>
+            <div class="col-sm-9">
+                <input id="sortorder" type="number" class="form-control" @bind="@_sortorder" />
+            </div>
+        </div>
+        <div class="row mb-1 align-items-center">
+            <Label Class="col-sm-3" For="status" HelpText="Select a status" ResourceKey="Status">Status: </Label>
+            <div class="col-sm-9">
+                <select id="status" class="form-select" @bind="@_status">
+                    <option value="draft">draft</option>
+                    <option value="published">published</option>
+                    <option value="archived">archived</option>
+                </select>
+            </div>
+        </div>
+        <div class="row mb-1 align-items-center">
+            <Label Class="col-sm-3" For="viewcount" HelpText="Enter a view count" ResourceKey="ViewCount">View Count: </Label>
+            <div class="col-sm-9">
+                <input id="viewcount" type="number" class="form-control" @bind="@_viewcount" />
             </div>
         </div>
     </div>
     <button type="button" class="btn btn-success" @onclick="Save">@Localizer["Save"]</button>
+    <ActionLink Action="ManageCategory" Security="SecurityAccessLevel.Edit" Text="Manage Categories" ResourceKey="ManageCategory" />
     <NavLink class="btn btn-secondary" href="@NavigateUrl()">@Localizer["Cancel"]</NavLink>
     <br /><br />
     @if (PageState.Action == "Edit")
@@ -25,6 +80,32 @@
     <AuditInfo CreatedBy="@_createdby" CreatedOn="@_createdon" ModifiedBy="@_modifiedby" ModifiedOn="@_modifiedon"></AuditInfo>
     }
 </form>
+
+@if (_faqs != null && _faqs.Count > 0)
+{
+    <hr />
+    <h5>Existing FAQs</h5>
+    <Pager Items="@_faqs" SearchProperties="CategoryName,Question,Answer,Status,SortOrder">
+        <Header>
+            <th style="width: 1px;">&nbsp;</th>
+            <th>@Localizer["CategoryName"]</th>
+            <th>@Localizer["Question"]</th>
+            <th>@Localizer["Answer"]</th>
+            <th>@Localizer["Status"]</th>
+            <th>@Localizer["ViewCount"]</th>
+            <th>@Localizer["SortOrder"]</th>
+        </Header>
+        <Row>
+            <td><ActionLink Action="Edit" Parameters="@($"id=" + context.FAQId.ToString())" ResourceKey="Edit" /></td>
+            <td>@context.CategoryName</td>
+            <td>@context.Question</td>
+            <td>@context.Answer</td>
+            <td>@context.Status</td>
+            <td>@context.ViewCount</td>
+            <td>@context.SortOrder</td>
+        </Row>
+    </Pager>
+}
 
 @code {
     public override SecurityAccessLevel SecurityAccessLevel => SecurityAccessLevel.Edit;
@@ -42,23 +123,39 @@
     private bool validated = false;
 
     private int _id;
-    private string _name;
+    private string _question;
+    private string _answer;
+    private int _categoryid;
+    private int _sortorder;
+    private string _status = "draft";
+    private int _viewcount;
+    private string _newCategoryName;
     private string _createdby;
     private DateTime _createdon;
     private string _modifiedby;
     private DateTime _modifiedon;
+    private List<Category> _categories = new();
+    private List<FAQ> _faqs = new();
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
+            _categories = await ClientCategoryService.GetCategoriesAsync(ModuleState.ModuleId);
+            _faqs = await ClientFAQService.GetFAQsAsync(ModuleState.ModuleId);
+
             if (PageState.Action == "Edit")
             {
                 _id = Int32.Parse(PageState.QueryString["id"]);
                 FAQ FAQ = await ClientFAQService.GetFAQAsync(_id, ModuleState.ModuleId);
                 if (FAQ != null)
                 {
-                    _name = FAQ.Name;
+                    _question = FAQ.Question;
+                    _answer = FAQ.Answer;
+                    _categoryid = FAQ.CategoryId;
+                    _sortorder = FAQ.SortOrder;
+                    _status = FAQ.Status;
+                    _viewcount = FAQ.ViewCount;
                     _createdby = FAQ.CreatedBy;
                     _createdon = FAQ.CreatedOn;
                     _modifiedby = FAQ.ModifiedBy;
@@ -70,6 +167,48 @@
         {
             await logger.LogError(ex, "Error Loading FAQ {FAQId} {Error}", _id, ex.Message);
             AddModuleMessage(Localizer["Message.LoadError"], MessageType.Error);
+        }
+    }
+
+    private Task OnCategoryChanged()
+    {
+        if (_categoryid != -1)
+        {
+            _newCategoryName = null;
+        }
+        return Task.CompletedTask;
+    }
+
+    private async Task CreateCategory()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_newCategoryName))
+            {
+                AddModuleMessage("Category name is required.", MessageType.Warning);
+                return;
+            }
+
+            var category = new Category
+            {
+                ModuleId = ModuleState.ModuleId,
+                Name = _newCategoryName.Trim(),
+                Slug = _newCategoryName.Trim().ToLowerInvariant().Replace(" ", "-"),
+                ParentId = 0,
+                SortOrder = _categories.Count,
+                IsActive = true
+            };
+
+            category = await ClientCategoryService.AddCategoryAsync(category);
+            _categories = await ClientCategoryService.GetCategoriesAsync(ModuleState.ModuleId);
+            _categoryid = category.CategoryId;
+            _newCategoryName = null;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await logger.LogError(ex, "Error Creating Category {Error}", ex.Message);
+            AddModuleMessage("Unable to create category.", MessageType.Error);
         }
     }
 
@@ -85,18 +224,45 @@
                 {
                     FAQ FAQ = new FAQ();
                     FAQ.ModuleId = ModuleState.ModuleId;
-                    FAQ.Name = _name;
+                    FAQ.Question = _question;
+                    FAQ.Answer = _answer;
+                    FAQ.CategoryId = _categoryid;
+                    FAQ.SortOrder = _sortorder;
+                    FAQ.Status = _status;
+                    FAQ.ViewCount = _viewcount;
                     FAQ = await ClientFAQService.AddFAQAsync(FAQ);
                     await logger.LogInformation("FAQ Added {FAQ}", FAQ);
                 }
                 else
                 {
                     FAQ FAQ = await ClientFAQService.GetFAQAsync(_id, ModuleState.ModuleId);
-                    FAQ.Name = _name;
+                    FAQ.Question = _question;
+                    FAQ.Answer = _answer;
+                    FAQ.CategoryId = _categoryid;
+                    FAQ.SortOrder = _sortorder;
+                    FAQ.Status = _status;
+                    FAQ.ViewCount = _viewcount;
                     await ClientFAQService.UpdateFAQAsync(FAQ);
                     await logger.LogInformation("FAQ Updated {FAQ}", FAQ);
                 }
-                NavigationManager.NavigateTo(NavigateUrl());
+
+                _id = 0;
+                _question = string.Empty;
+                _answer = string.Empty;
+                _categoryid = 0;
+                _sortorder = 0;
+                _status = "draft";
+                _viewcount = 0;
+                _newCategoryName = null;
+                _createdby = null;
+                _createdon = default;
+                _modifiedby = null;
+                _modifiedon = default;
+                validated = false;
+
+                _faqs = await ClientFAQService.GetFAQsAsync(ModuleState.ModuleId);
+
+                NavigationManager.NavigateTo(NavigateUrl(PageState.ModuleId,"Add"), true);
             }
             else
             {

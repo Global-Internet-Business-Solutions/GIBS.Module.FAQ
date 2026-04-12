@@ -13,6 +13,11 @@ namespace GIBS.Module.FAQ.Startup
             {
                 services.AddScoped<IFAQService, ClientFAQService>();
             }
+
+            if (!services.Any(s => s.ServiceType == typeof(ICategoryService)))
+            {
+                services.AddScoped<ICategoryService, ClientCategoryService>();
+            }
         }
     }
 }

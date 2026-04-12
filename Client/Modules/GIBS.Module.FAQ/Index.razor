@@ -4,6 +4,7 @@
 @namespace GIBS.Module.FAQ
 @inherits ModuleBase
 @inject IFAQService ClientFAQService
+@inject ICategoryService ClientCategoryService
 @inject NavigationManager NavigationManager
 @inject IStringLocalizer<Index> Localizer
 
@@ -13,46 +14,98 @@
 }
 else
 {
-    <ActionLink Action="Add" Security="SecurityAccessLevel.Edit" Text="Add FAQ" ResourceKey="Add" />
-    <br />
-    <br />
-    @if (@_FAQs.Count != 0)
+    <div class="text-end">
+        <ActionLink Action="Add" Security="SecurityAccessLevel.Edit" Text="Manage FAQs" ResourceKey="Add" />
+        <ActionLink Action="ManageCategory" Security="SecurityAccessLevel.Edit" Text="Manage Categories" ResourceKey="ManageCategory" />
+    </div>
+
+    @if (_allFAQs.Count != 0)
     {
-        <Pager Items="@_FAQs">
-            <Header>
-                <th style="width: 1px;">&nbsp;</th>
-                <th style="width: 1px;">&nbsp;</th>
-                <th>@Localizer["Name"]</th>
-            </Header>
-            <Row>
-                <td><ActionLink Action="Edit" Parameters="@($"id=" + context.FAQId.ToString())" ResourceKey="Edit"  /></td>
-                <td><ActionDialog Header="Delete FAQ" Message="Are You Sure You Wish To Delete This FAQ?" Action="Delete" Security="SecurityAccessLevel.Edit" Class="btn btn-danger" OnClick="@(async () => await Delete(context))" ResourceKey="Delete"  Id="@context.FAQId.ToString()" /></td>
-                <td>@context.Name</td>
-            </Row>
-        </Pager>
+        <section class="py-4 bg-light rounded-3 mt-3">
+            <div class="container">
+                <div class="row justify-content-center mb-4">
+                    <div class="col-lg-10 text-center">
+                        <h2 class="mb-2">@Localizer["Frequently Asked Questions"]</h2>
+                    </div>
+                </div>
+
+                <div class="row justify-content-center">
+                    <div class="col-lg-10 text-center mb-3">
+                        <a class="btn btn-outline-secondary btn-sm me-2 mb-2 @(string.IsNullOrEmpty(_selectedCategorySlug) ? "active" : "")" href="@NavigateUrl()">All</a>
+                        @foreach (var category in _categories)
+                        {
+                            <a class="btn btn-outline-secondary btn-sm me-2 mb-2 @(_selectedCategorySlug == category.Slug ? "active" : "")" href="@NavigateUrl()?Category=@Uri.EscapeDataString(category.Slug)">@category.Name</a>
+                        }
+                    </div>
+                </div>
+
+                <div class="row justify-content-center">
+                    <div class="col-lg-10">
+                        <div class="accordion" id="faqAccordion">
+                            @for (var i = 0; i < _FAQs.Count; i++)
+                            {
+                                var faq = _FAQs[i];
+                                var headingId = $"faqHeading{faq.FAQId}";
+                                var collapseId = $"faqCollapse{faq.FAQId}";
+                                <div class="accordion-item mb-4">
+                                    <h2 class="accordion-header" id="@headingId">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="@($"#{collapseId}")" aria-expanded="false" aria-controls="@collapseId">
+                                            @faq.Question
+                                        </button>
+                                    </h2>
+                                    <div id="@collapseId" class="accordion-collapse collapse" aria-labelledby="@headingId" data-bs-parent="#faqAccordion">
+                                        <div class="accordion-body">
+                                            @if (string.IsNullOrWhiteSpace(faq.Answer))
+                                            {
+                                                <span class="text-muted">No answer provided.</span>
+                                            }
+                                            else
+                                            {
+                                                @faq.Answer
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
     }
     else
     {
-        <p>@Localizer["Message.DisplayNone"]</p>
+        <p class="mt-3">@Localizer["Message.DisplayNone"]</p>
     }
 }
 
 @code {
     public override string RenderMode => RenderModes.Static;
 
-    public override List<Resource> Resources => new List<Resource>()
-    {
-        new Stylesheet("_content/GIBS.Module.FAQ/Module.css"),
-        new Script("_content/GIBS.Module.FAQ/Module.js")
-    };
+    public override List<Resource> Resources => new List<Resource>();
 
+    List<FAQ> _allFAQs = new();
     List<FAQ> _FAQs;
+    List<Category> _categories = new();
+    string _selectedCategorySlug;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            _FAQs = await ClientFAQService.GetFAQsAsync(ModuleState.ModuleId);
+            _categories = await ClientCategoryService.GetCategoriesAsync(ModuleState.ModuleId);
+            _allFAQs = (await ClientFAQService.GetFAQsAsync(ModuleState.ModuleId))
+                .Where(x => string.Equals(x.Status, "published", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(x => x.SortOrder)
+                .ThenBy(x => x.Question)
+                .ToList();
+
+            if (!PageState.QueryString.TryGetValue("Category", out _selectedCategorySlug))
+            {
+                PageState.QueryString.TryGetValue("category", out _selectedCategorySlug);
+            }
+
+            ApplyFilter();
         }
         catch (Exception ex)
         {
@@ -61,19 +114,17 @@ else
         }
     }
 
-    private async Task Delete(FAQ FAQ)
+    private void ApplyFilter()
     {
-        try
+        if (string.IsNullOrWhiteSpace(_selectedCategorySlug))
         {
-            await ClientFAQService.DeleteFAQAsync(FAQ.FAQId, ModuleState.ModuleId);
-            await logger.LogInformation("FAQ Deleted {FAQ}", FAQ);
-            _FAQs = await ClientFAQService.GetFAQsAsync(ModuleState.ModuleId);
-            StateHasChanged();
+            _FAQs = _allFAQs;
+            return;
         }
-        catch (Exception ex)
-        {
-            await logger.LogError(ex, "Error Deleting FAQ {FAQ} {Error}", FAQ, ex.Message);
-            AddModuleMessage(Localizer["Message.DeleteError"], MessageType.Error);
-        }
+
+        var category = _categories.FirstOrDefault(c => string.Equals(c.Slug, _selectedCategorySlug, StringComparison.OrdinalIgnoreCase));
+        _FAQs = (category == null)
+            ? new List<FAQ>()
+            : _allFAQs.Where(x => x.CategoryId == category.CategoryId).ToList();
     }
 }

@@ -10,6 +10,7 @@ namespace GIBS.Module.FAQ.Repository
     public class FAQContext : DBContextBase, ITransientService, IMultiDatabase
     {
         public virtual DbSet<Models.FAQ> FAQ { get; set; }
+        public virtual DbSet<Models.Category> Category { get; set; }
 
         public FAQContext(IDBContextDependencies DBContextDependencies) : base(DBContextDependencies)
         {
@@ -21,6 +22,7 @@ namespace GIBS.Module.FAQ.Repository
             base.OnModelCreating(builder);
 
             builder.Entity<Models.FAQ>().ToTable(ActiveDatabase.RewriteName("GIBSFAQ"));
+            builder.Entity<Models.Category>().ToTable(ActiveDatabase.RewriteName("GIBSFAQ_Category"));
         }
     }
 }

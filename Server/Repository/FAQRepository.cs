@@ -13,6 +13,7 @@ namespace GIBS.Module.FAQ.Repository
         Models.FAQ AddFAQ(Models.FAQ FAQ);
         Models.FAQ UpdateFAQ(Models.FAQ FAQ);
         void DeleteFAQ(int FAQId);
+        void IncrementViewCount(int FAQId); 
     }
 
     public class FAQRepository : IFAQRepository, ITransientService
@@ -27,7 +28,15 @@ namespace GIBS.Module.FAQ.Repository
         public IEnumerable<Models.FAQ> GetFAQs(int ModuleId)
         {
             using var db = _factory.CreateDbContext();
-            return db.FAQ.Where(item => item.ModuleId == ModuleId).ToList();
+            var faqs = db.FAQ.Where(item => item.ModuleId == ModuleId).ToList();
+            var categories = db.Category.Where(item => item.ModuleId == ModuleId).ToDictionary(item => item.CategoryId, item => item.Name);
+
+            foreach (var faq in faqs)
+            {
+                faq.CategoryName = categories.TryGetValue(faq.CategoryId, out var categoryName) ? categoryName : null;
+            }
+
+            return faqs;
         }
 
         public Models.FAQ GetFAQ(int FAQId)
@@ -38,14 +47,22 @@ namespace GIBS.Module.FAQ.Repository
         public Models.FAQ GetFAQ(int FAQId, bool tracking)
         {
             using var db = _factory.CreateDbContext();
+            Models.FAQ faq;
             if (tracking)
             {
-                return db.FAQ.Find(FAQId);
+                faq = db.FAQ.Find(FAQId);
             }
             else
             {
-                return db.FAQ.AsNoTracking().FirstOrDefault(item => item.FAQId == FAQId);
+                faq = db.FAQ.AsNoTracking().FirstOrDefault(item => item.FAQId == FAQId);
             }
+
+            if (faq != null)
+            {
+                faq.CategoryName = db.Category.AsNoTracking().FirstOrDefault(item => item.CategoryId == faq.CategoryId)?.Name;
+            }
+
+            return faq;
         }
 
         public Models.FAQ AddFAQ(Models.FAQ FAQ)
@@ -70,6 +87,17 @@ namespace GIBS.Module.FAQ.Repository
             Models.FAQ FAQ = db.FAQ.Find(FAQId);
             db.FAQ.Remove(FAQ);
             db.SaveChanges();
+        }
+
+        public void IncrementViewCount(int FAQId)
+        {
+            using var db = _factory.CreateDbContext();
+            Models.FAQ faq = db.FAQ.Find(FAQId);
+            if (faq != null)
+            {
+                faq.ViewCount++;
+                db.SaveChanges();
+            }
         }
     }
 }
