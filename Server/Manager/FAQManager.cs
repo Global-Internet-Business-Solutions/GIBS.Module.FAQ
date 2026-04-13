@@ -13,15 +13,39 @@ using System.Threading.Tasks;
 
 namespace GIBS.Module.FAQ.Manager
 {
-    public class FAQManager : MigratableModuleBase, IInstallable, IPortable, ISearchable
+    public class FAQManager : MigratableModuleBase, IInstallable, IPortable, ISearchable, ISitemap
     {
         private readonly IFAQRepository _FAQRepository;
         private readonly IDBContextDependencies _DBContextDependencies;
+        
 
         public FAQManager(IFAQRepository FAQRepository, IDBContextDependencies DBContextDependencies)
         {
             _FAQRepository = FAQRepository;
             _DBContextDependencies = DBContextDependencies;
+        }
+
+        public List<Sitemap> GetUrls(string alias, string path, Oqtane.Models.Module module)
+        {
+            var sitemapUrls = new List<Sitemap>();
+            var faqs = _FAQRepository.GetFAQs(module.ModuleId);
+   
+
+            // 1. Fetch your custom module data (e.g., from a repository)
+            // 2. Loop through your items and create Sitemap objects
+            // 3. Example of adding a dynamic detail page:
+
+            foreach (var faq in faqs)
+            {
+
+                sitemapUrls.Add(new Sitemap
+                {
+                    Url = $"{alias}/{path}?question={faq.FAQId}", // Construct the full URL
+                    ModifiedOn = DateTime.UtcNow
+                });
+            }
+
+            return sitemapUrls;
         }
 
         public bool Install(Tenant tenant, string version)

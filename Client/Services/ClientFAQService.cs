@@ -42,7 +42,7 @@ namespace GIBS.Module.FAQ.Services
 
         public async Task IncrementViewCountAsync(int FAQId, int ModuleId)
         {
-            await PostAsync(CreateAuthorizationPolicyUrl($"{Apiurl}/{FAQId}/{ModuleId}/view", EntityNames.Module, ModuleId));
+            await GetAsync(CreateAuthorizationPolicyUrl($"{Apiurl}/{FAQId}/{ModuleId}/view", EntityNames.Module, ModuleId));
         }
     }
 }

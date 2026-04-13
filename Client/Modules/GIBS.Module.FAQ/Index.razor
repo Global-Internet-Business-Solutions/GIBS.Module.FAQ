@@ -49,11 +49,11 @@ else
                                 var collapseId = $"faqCollapse{faq.FAQId}";
                                 <div class="accordion-item mb-4">
                                     <h2 class="accordion-header" id="@headingId">
-                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="@($"#{collapseId}")" aria-expanded="false" aria-controls="@collapseId">
+                                        <a class="accordion-button @(_expandedFAQId == faq.FAQId ? "" : "collapsed")" href="@GetFaqUrl(faq.FAQId)" aria-expanded="@(_expandedFAQId == faq.FAQId ? "true" : "false")" aria-controls="@collapseId">
                                             @faq.Question
-                                        </button>
+                                        </a>
                                     </h2>
-                                    <div id="@collapseId" class="accordion-collapse collapse" aria-labelledby="@headingId" data-bs-parent="#faqAccordion">
+                                    <div id="@collapseId" class="accordion-collapse collapse @(_expandedFAQId == faq.FAQId ? "show" : "")" aria-labelledby="@headingId" data-bs-parent="#faqAccordion">
                                         <div class="accordion-body">
                                             @if (string.IsNullOrWhiteSpace(faq.Answer))
                                             {
@@ -82,22 +82,29 @@ else
 @code {
     public override string RenderMode => RenderModes.Static;
 
-    public override List<Resource> Resources => new List<Resource>();
-
     List<FAQ> _allFAQs = new();
     List<FAQ> _FAQs;
     List<Category> _categories = new();
     string _selectedCategorySlug;
+    int? _expandedFAQId;
+
+    public override List<Resource> Resources => new List<Resource>()
+    {
+        new Resource { ResourceType = ResourceType.Stylesheet, Url = "_content/GIBS.Module.FAQ/css/default.css?v=1.0.6" }
+
+    };
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
             _categories = await ClientCategoryService.GetCategoriesAsync(ModuleState.ModuleId);
-            _allFAQs = (await ClientFAQService.GetFAQsAsync(ModuleState.ModuleId))
-                .Where(x => string.Equals(x.Status, "published", StringComparison.OrdinalIgnoreCase))
-                .OrderBy(x => x.SortOrder)
-                .ThenBy(x => x.Question)
+            var faqs = await ClientFAQService.GetFAQsAsync(ModuleState.ModuleId);
+
+            _allFAQs = faqs
+                .Where(f => string.Equals(f.Status, "published", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(f => f.SortOrder)
+                .ThenBy(f => f.Question, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             if (!PageState.QueryString.TryGetValue("Category", out _selectedCategorySlug))
@@ -106,6 +113,25 @@ else
             }
 
             ApplyFilter();
+
+            string faqValue;
+            if (!PageState.QueryString.TryGetValue("question", out faqValue))
+            {
+                PageState.QueryString.TryGetValue("Question", out faqValue);
+            }
+
+            if (int.TryParse(faqValue, out var faqId) && _FAQs.Any(x => x.FAQId == faqId))
+            {
+                _expandedFAQId = faqId;
+                await ClientFAQService.IncrementViewCountAsync(faqId, ModuleState.ModuleId);
+
+                var faq = _allFAQs.FirstOrDefault(x => x.FAQId == faqId);
+                if (faq != null)
+                {
+                    faq.ViewCount++;
+                    SetPageTitle(faq.Question);
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -126,5 +152,20 @@ else
         _FAQs = (category == null)
             ? new List<FAQ>()
             : _allFAQs.Where(x => x.CategoryId == category.CategoryId).ToList();
+    }
+
+    private string GetFaqUrl(int faqId)
+    {
+        var url = NavigateUrl();
+        var query = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(_selectedCategorySlug))
+        {
+            query.Add($"Category={Uri.EscapeDataString(_selectedCategorySlug)}");
+        }
+
+        query.Add($"question={faqId}");
+
+        return $"{url}?{string.Join("&", query)}";
     }
 }

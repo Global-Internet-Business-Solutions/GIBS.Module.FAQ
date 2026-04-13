@@ -111,6 +111,23 @@ namespace GIBS.Module.FAQ.Controllers
             }
         }
 
+        // GET api/<controller>/5/1/view
+        [HttpGet("{id}/{moduleid}/view")]
+        [Authorize(Policy = PolicyNames.ViewModule)]
+        public async Task GetView(int id, int moduleid)
+        {
+            Models.FAQ FAQ = await _FAQService.GetFAQAsync(id, moduleid);
+            if (FAQ != null && IsAuthorizedEntityId(EntityNames.Module, FAQ.ModuleId))
+            {
+                await _FAQService.IncrementViewCountAsync(id, FAQ.ModuleId);
+            }
+            else
+            {
+                _logger.Log(LogLevel.Error, this, LogFunction.Security, "Unauthorized FAQ ViewCount Increment Attempt {FAQId} {ModuleId}", id, moduleid);
+                HttpContext.Response.StatusCode = (int)HttpStatusCode.Forbidden;
+            }
+        }
+
         // POST api/<controller>/5/1/view
         [HttpPost("{id}/{moduleid}/view")]
         [Authorize(Policy = PolicyNames.ViewModule)]
