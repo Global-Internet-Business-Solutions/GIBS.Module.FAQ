@@ -1,6 +1,8 @@
 @using Oqtane.Modules.Controls
 @using GIBS.Module.FAQ.Services
 @using GIBS.Module.FAQ.Models
+@using System.Globalization
+@using Oqtane.Modules.HtmlText.Services
 
 @namespace GIBS.Module.FAQ
 @inherits ModuleBase
@@ -8,6 +10,7 @@
 @inject ICategoryService ClientCategoryService
 @inject NavigationManager NavigationManager
 @inject IStringLocalizer<Edit> Localizer
+@inject IHtmlTextService HtmlTextService
 
 <form @ref="form" class="@(validated ? " was-validated" : "needs-validation" )" novalidate>
     <div class="container">
@@ -20,7 +23,8 @@
         <div class="row mb-1 align-items-center">
             <Label Class="col-sm-3" For="answer" HelpText="Enter an answer" ResourceKey="Answer">Answer: </Label>
             <div class="col-sm-9">
-                <textarea id="answer" class="form-control" @bind="@_answer"></textarea>
+               
+                <RichTextEditor id="htmlContent" Content="@_answer" @bind="@_answer" @ref="@RichTextEditorHtml"></RichTextEditor>
             </div>
         </div>
         <div class="row mb-1 align-items-center">
@@ -58,9 +62,9 @@
             <Label Class="col-sm-3" For="status" HelpText="Select a status" ResourceKey="Status">Status: </Label>
             <div class="col-sm-9">
                 <select id="status" class="form-select" @bind="@_status">
-                    <option value="draft">draft</option>
-                    <option value="published">published</option>
-                    <option value="archived">archived</option>
+                    <option value="draft">Draft</option>
+                    <option value="published" selected>Published</option>
+                    <option value="archived">Archived</option>
                 </select>
             </div>
         </div>
@@ -101,10 +105,10 @@
             <td><ActionLink Action="Edit" Parameters="@($"id=" + context.FAQId.ToString())" ResourceKey="Edit" /></td>
             <td>@context.CategoryName</td>
             <td>@context.Question</td>
-            <td>@context.Answer</td>
-            <td>@context.Status</td>
-            <td>@context.ViewCount</td>
-            <td>@context.SortOrder</td>
+            <td> @((MarkupString)@context.Answer)</td>
+            <td>@CultureInfo.CurrentCulture.TextInfo.ToTitleCase((context.Status ?? "").ToLower())</td>
+            <td class="text-center">@context.ViewCount</td>
+            <td class="text-center">@context.SortOrder</td>
         </Row>
     </Pager>
 }
@@ -138,13 +142,22 @@
     private DateTime _modifiedon;
     private List<Category> _categories = new();
     private List<FAQ> _faqs = new();
+    private RichTextEditor RichTextEditorHtml;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
             _categories = await ClientCategoryService.GetCategoriesAsync(ModuleState.ModuleId);
-            _faqs = await ClientFAQService.GetFAQsAsync(ModuleState.ModuleId);
+         //   _faqs = await ClientFAQService.GetFAQsAsync(ModuleState.ModuleId);
+            var faqs = await ClientFAQService.GetFAQsAsync(ModuleState.ModuleId);
+
+            _faqs = faqs
+              //  .Where(f => string.Equals(f.Status, "published", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(f => f.CategorySortOrder)
+                .ThenBy(f => f.SortOrder)
+                .ThenBy(f => f.Question, StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
             if (PageState.Action == "Edit")
             {
@@ -227,7 +240,7 @@
                     FAQ FAQ = new FAQ();
                     FAQ.ModuleId = ModuleState.ModuleId;
                     FAQ.Question = _question;
-                    FAQ.Answer = _answer;
+                    FAQ.Answer = await RichTextEditorHtml.GetHtml();
                     FAQ.CategoryId = _categoryid;
                     FAQ.SortOrder = _sortorder;
                     FAQ.Status = _status;
@@ -239,7 +252,7 @@
                 {
                     FAQ FAQ = await ClientFAQService.GetFAQAsync(_id, ModuleState.ModuleId);
                     FAQ.Question = _question;
-                    FAQ.Answer = _answer;
+                    FAQ.Answer = await RichTextEditorHtml.GetHtml(); 
                     FAQ.CategoryId = _categoryid;
                     FAQ.SortOrder = _sortorder;
                     FAQ.Status = _status;
@@ -262,7 +275,15 @@
                 _modifiedon = default;
                 validated = false;
 
-                _faqs = await ClientFAQService.GetFAQsAsync(ModuleState.ModuleId);
+               // _faqs = await ClientFAQService.GetFAQsAsync(ModuleState.ModuleId);
+                var faqs = await ClientFAQService.GetFAQsAsync(ModuleState.ModuleId);
+
+                _faqs = faqs
+                  //  .Where(f => string.Equals(f.Status, "published", StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(f => f.CategorySortOrder)
+                    .ThenBy(f => f.SortOrder)
+                    .ThenBy(f => f.Question, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
 
                 NavigationManager.NavigateTo(NavigateUrl(PageState.ModuleId,"Add"), true);
             }

@@ -29,11 +29,17 @@ namespace GIBS.Module.FAQ.Repository
         {
             using var db = _factory.CreateDbContext();
             var faqs = db.FAQ.Where(item => item.ModuleId == ModuleId).ToList();
-            var categories = db.Category.Where(item => item.ModuleId == ModuleId).ToDictionary(item => item.CategoryId, item => item.Name);
+            var categories = db.Category
+                .Where(item => item.ModuleId == ModuleId)
+                .ToDictionary(item => item.CategoryId, item => new { item.Name, item.SortOrder });
 
             foreach (var faq in faqs)
             {
-                faq.CategoryName = categories.TryGetValue(faq.CategoryId, out var categoryName) ? categoryName : null;
+                if (categories.TryGetValue(faq.CategoryId, out var category))
+                {
+                    faq.CategoryName = category.Name;
+                    faq.CategorySortOrder = category.SortOrder;
+                }
             }
 
             return faqs;
@@ -59,7 +65,9 @@ namespace GIBS.Module.FAQ.Repository
 
             if (faq != null)
             {
-                faq.CategoryName = db.Category.AsNoTracking().FirstOrDefault(item => item.CategoryId == faq.CategoryId)?.Name;
+                var category = db.Category.AsNoTracking().FirstOrDefault(item => item.CategoryId == faq.CategoryId);
+                faq.CategoryName = category?.Name;
+                faq.CategorySortOrder = category?.SortOrder ?? 0;
             }
 
             return faq;

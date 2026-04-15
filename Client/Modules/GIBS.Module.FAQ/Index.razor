@@ -15,7 +15,7 @@
 else
 {
     <div class="text-end">
-        <ActionLink Action="Add" Security="SecurityAccessLevel.Edit" Text="Manage FAQs" ResourceKey="Add" />
+        <ActionLink Action="Add" Security="SecurityAccessLevel.Edit" Text="Manage FAQ" ResourceKey="ManageFAQ" />
         <ActionLink Action="ManageCategory" Security="SecurityAccessLevel.Edit" Text="Manage Categories" ResourceKey="ManageCategory" />
     </div>
 
@@ -32,6 +32,7 @@ else
                 <div class="row justify-content-center">
                     <div class="col-lg-10 text-center mb-3">
                         <a class="btn btn-outline-secondary btn-sm me-2 mb-2 @(string.IsNullOrEmpty(_selectedCategorySlug) ? "active" : "")" href="@NavigateUrl()">All</a>
+                       
                         @foreach (var category in _categories)
                         {
                             <a class="btn btn-outline-secondary btn-sm me-2 mb-2 @(_selectedCategorySlug == category.Slug ? "active" : "")" href="@NavigateUrl()?Category=@Uri.EscapeDataString(category.Slug)">@category.Name</a>
@@ -41,33 +42,46 @@ else
 
                 <div class="row justify-content-center">
                     <div class="col-lg-10">
-                        <div class="accordion" id="faqAccordion">
-                            @for (var i = 0; i < _FAQs.Count; i++)
-                            {
-                                var faq = _FAQs[i];
-                                var headingId = $"faqHeading{faq.FAQId}";
-                                var collapseId = $"faqCollapse{faq.FAQId}";
-                                <div class="accordion-item mb-4">
-                                    <h2 class="accordion-header" id="@headingId">
-                                        <a class="accordion-button @(_expandedFAQId == faq.FAQId ? "" : "collapsed")" href="@GetFaqUrl(faq.FAQId)" aria-expanded="@(_expandedFAQId == faq.FAQId ? "true" : "false")" aria-controls="@collapseId">
-                                            @faq.Question
-                                        </a>
-                                    </h2>
-                                    <div id="@collapseId" class="accordion-collapse collapse @(_expandedFAQId == faq.FAQId ? "show" : "")" aria-labelledby="@headingId" data-bs-parent="#faqAccordion">
-                                        <div class="accordion-body">
-                                            @if (string.IsNullOrWhiteSpace(faq.Answer))
-                                            {
-                                                <span class="text-muted">No answer provided.</span>
-                                            }
-                                            else
-                                            {
-                                                @faq.Answer
-                                            }
+                        @foreach (var categoryGroup in _FAQs.GroupBy(faq => new
+                        {
+                            faq.CategoryId,
+                            CategoryName = string.IsNullOrWhiteSpace(faq.CategoryName) ? "Uncategorized" : faq.CategoryName
+                        }))
+                        {
+                            var accordionId = $"faqAccordion{categoryGroup.Key.CategoryId}";
+                            <h3 class="h3 mt-4 mb-3">
+                                <span class="d-inline-flex justify-content-center align-items-center bg-white rounded-circle border border-dark" style="width: 44px; height: 44px;">
+                                    <i class="oi oi-question-mark"></i></span> &nbsp;
+                                @categoryGroup.Key.CategoryName
+                            
+                            </h3>
+                            <div class="accordion mb-4" id="@accordionId">
+                                @foreach (var faq in categoryGroup)
+                                {
+                                    var headingId = $"faqHeading{faq.FAQId}";
+                                    var collapseId = $"faqCollapse{faq.FAQId}";
+                                    <div class="accordion-item mb-4">
+                                        <h2 class="accordion-header" id="@headingId">
+                                            <a class="fs-4 accordion-button @(_expandedFAQId == faq.FAQId ? "" : "collapsed")" href="@GetFaqUrl(faq.FAQId)" aria-expanded="@(_expandedFAQId == faq.FAQId ? "true" : "false")" aria-controls="@collapseId">
+                                                @faq.Question
+                                            </a>
+                                        </h2>
+                                        <div id="@collapseId" class="accordion-collapse collapse @(_expandedFAQId == faq.FAQId ? "show" : "")" aria-labelledby="@headingId" data-bs-parent="#@accordionId">
+                                            <div class="accordion-body">
+                                                @if (string.IsNullOrWhiteSpace(faq.Answer))
+                                                {
+                                                    <span class="text-muted">No answer provided.</span>
+                                                }
+                                                else
+                                                {
+                                                    @((MarkupString)@faq.Answer) 
+                                                }
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            }
-                        </div>
+                                }
+                            </div>
+                        }
                     </div>
                 </div>
             </div>
@@ -100,24 +114,31 @@ else
         {
             _categories = await ClientCategoryService.GetCategoriesAsync(ModuleState.ModuleId);
             var faqs = await ClientFAQService.GetFAQsAsync(ModuleState.ModuleId);
-
             _allFAQs = faqs
                 .Where(f => string.Equals(f.Status, "published", StringComparison.OrdinalIgnoreCase))
-                .OrderBy(f => f.SortOrder)
+                .OrderBy(f => f.CategorySortOrder)
+                .ThenBy(f => f.SortOrder)
                 .ThenBy(f => f.Question, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             if (!PageState.QueryString.TryGetValue("Category", out _selectedCategorySlug))
             {
                 PageState.QueryString.TryGetValue("category", out _selectedCategorySlug);
+                //SetPageTitle(_categories.FirstOrDefault(c => string.Equals(c.Slug, _selectedCategorySlug, StringComparison.OrdinalIgnoreCase))?.Name);
             }
 
             ApplyFilter();
 
             string faqValue;
-            if (!PageState.QueryString.TryGetValue("question", out faqValue))
+            if (!PageState.QueryString.TryGetValue("faq", out faqValue))
             {
-                PageState.QueryString.TryGetValue("Question", out faqValue);
+                if (!PageState.QueryString.TryGetValue("FAQ", out faqValue))
+                {
+                    if (!PageState.QueryString.TryGetValue("question", out faqValue))
+                    {
+                        PageState.QueryString.TryGetValue("Question", out faqValue);
+                    }
+                }
             }
 
             if (int.TryParse(faqValue, out var faqId) && _FAQs.Any(x => x.FAQId == faqId))
@@ -152,6 +173,7 @@ else
         _FAQs = (category == null)
             ? new List<FAQ>()
             : _allFAQs.Where(x => x.CategoryId == category.CategoryId).ToList();
+        SetPageTitle($"{category?.Name} FAQs");
     }
 
     private string GetFaqUrl(int faqId)
@@ -164,8 +186,13 @@ else
             query.Add($"Category={Uri.EscapeDataString(_selectedCategorySlug)}");
         }
 
-        query.Add($"question={faqId}");
+        if (_expandedFAQId != faqId)
+        {
+            query.Add($"faq={faqId}");
+        }
 
-        return $"{url}?{string.Join("&", query)}";
+        return query.Count == 0
+            ? url
+            : $"{url}?{string.Join("&", query)}";
     }
 }

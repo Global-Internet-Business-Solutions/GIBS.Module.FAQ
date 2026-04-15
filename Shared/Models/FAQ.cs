@@ -19,6 +19,7 @@ namespace GIBS.Module.FAQ.Models
 
         [NotMapped]
         public string CategoryName { get; set; } // Not mapped, for display only
-
+        [NotMapped]
+        public int CategorySortOrder { get; set; } // Not mapped, for sorting only
     }
 }

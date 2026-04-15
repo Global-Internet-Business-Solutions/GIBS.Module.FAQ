@@ -111,7 +111,7 @@ namespace GIBS.Module.FAQ.Controllers
             }
         }
 
-        // GET api/<controller>/5/1/view
+        // GET api/<controller>/5/1/view  //
         [HttpGet("{id}/{moduleid}/view")]
         [Authorize(Policy = PolicyNames.ViewModule)]
         public async Task GetView(int id, int moduleid)

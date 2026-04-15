@@ -121,7 +121,7 @@
     <value>Question</value>
   </data>
   <data name="ManageFAQ.Text" xml:space="preserve">
-    <value>Manage FAQ</value>
+    <value>Manage FAQs</value>
   </data>
   <data name="Edit.Text" xml:space="preserve">
     <value>Edit</value>
@@ -139,12 +139,12 @@
     <value>No FAQs To Display</value>
   </data>
   <data name="Message.LoadError" xml:space="preserve">
-    <value>Error Loading FAQ</value>
+    <value>Error Loading FAQs</value>
   </data>
   <data name="Message.DeleteError" xml:space="preserve">
     <value>Error Deleting FAQ</value>
   </data>
   <data name="ManageCategory.Text" xml:space="preserve">
-    <value>Manage Cats</value>
+    <value>Manage Categories</value>
   </data>
 </root>

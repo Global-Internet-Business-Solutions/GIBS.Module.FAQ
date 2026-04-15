@@ -27,7 +27,11 @@ namespace GIBS.Module.FAQ.Repository
         public IEnumerable<Models.Category> GetCategories(int ModuleId)
         {
             using var db = _factory.CreateDbContext();
-            return db.Category.Where(item => item.ModuleId == ModuleId).ToList();
+            return db.Category
+                .Where(item => item.ModuleId == ModuleId)
+                .OrderBy(item => item.SortOrder)
+                .ThenBy(item => item.CategoryId)
+                .ToList();
         }
 
         public Models.Category GetCategory(int CategoryId)

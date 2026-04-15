@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
@@ -16,7 +17,9 @@ namespace GIBS.Module.FAQ.Services
         public async Task<List<Models.Category>> GetCategoriesAsync(int ModuleId)
         {
             List<Models.Category> categories = await GetJsonAsync<List<Models.Category>>(CreateAuthorizationPolicyUrl($"{Apiurl}?moduleid={ModuleId}", EntityNames.Module, ModuleId), Enumerable.Empty<Models.Category>().ToList());
-            return categories.OrderBy(item => item.SortOrder).ThenBy(item => item.Name).ToList();
+            return categories
+                .OrderBy(item => item.SortOrder)
+                .ToList();
         }
 
         public async Task<Models.Category> GetCategoryAsync(int CategoryId, int ModuleId)
