@@ -76,6 +76,24 @@ namespace GIBS.Module.FAQ.Controllers
             return FAQ;
         }
 
+        // POST api/<controller>/submit
+        [HttpPost("submit")]
+        [Authorize(Policy = PolicyNames.ViewModule)]
+        public async Task<Models.FAQ> Submit([FromBody] Models.FAQ FAQ)
+        {
+            if (ModelState.IsValid && IsAuthorizedEntityId(EntityNames.Module, FAQ.ModuleId))
+            {
+                FAQ = await _FAQService.SubmitQuestionAsync(FAQ);
+            }
+            else
+            {
+                _logger.Log(LogLevel.Error, this, LogFunction.Security, "Unauthorized FAQ Submit Attempt {FAQ}", FAQ);
+                HttpContext.Response.StatusCode = (int)HttpStatusCode.Forbidden;
+                FAQ = null;
+            }
+            return FAQ;
+        }
+
         // PUT api/<controller>/5
         [HttpPut("{id}")]
         [Authorize(Policy = PolicyNames.EditModule)]

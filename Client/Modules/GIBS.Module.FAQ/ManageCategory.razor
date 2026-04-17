@@ -25,7 +25,7 @@
         <div class="row mb-1 align-items-center">
             <Label Class="col-sm-3" For="parentid" HelpText="Select parent category" ResourceKey="ParentId">Parent Id: </Label>
             <div class="col-sm-9">
-                <select id="parentid" class="form-select" @bind="@_parentid">
+                <select id="parentid" class="form-select" @bind="@_parentid" @bind:after="OnParentChanged">
                     <option value="0">-- None --</option>
                     @foreach (var category in _categories.Where(c => c.CategoryId != _id))
                     {
@@ -62,6 +62,8 @@
             <th style="width: 1px;">&nbsp;</th>
             <th>@Localizer["Name"]</th>
             <th>@Localizer["Slug"]</th>
+            <th style="width: 1px;">&nbsp;</th>
+            <th style="width: 1px;">&nbsp;</th>
             <th>@Localizer["SortOrder"]</th>
             <th>@Localizer["IsActive"]</th>
         </Header>
@@ -70,8 +72,14 @@
             <td><ActionDialog Header="Delete Category" IconName="delete" IconOnly="true" Message="Are You Sure You Wish To Delete This Category?" Action="Delete" Security="SecurityAccessLevel.Edit" Class="btn btn-danger" OnClick="@(async () => await Delete(context))" ResourceKey="Delete" Id="@context.CategoryId.ToString()" /></td>
             <td>@context.Name</td>
             <td>@context.Slug</td>
-            <td>@context.SortOrder</td>
-            <td>@context.IsActive</td>
+            <td>
+                <button type="button" class="btn btn-outline-primary" title="Move Up" @onclick="@(async () => await MoveUp(context))" disabled="@(context.SortOrder == _categories.Where(c => c.ParentId == context.ParentId).Min(c => c.SortOrder))"><i class="oi oi-arrow-circle-top"></i></button>
+            </td>
+            <td>
+                <button type="button" class="btn btn-outline-primary" title="Move Down" @onclick="@(async () => await MoveDown(context))" disabled="@(context.SortOrder == _categories.Where(c => c.ParentId == context.ParentId).Max(c => c.SortOrder))"><i class="oi oi-arrow-circle-bottom"></i></button>
+            </td>
+            <td style="width:80px;" class="text-center">@context.SortOrder</td>
+            <td style="width:80px;" class="text-center">@context.IsActive</td>
         </Row>
     </Pager>
 }
@@ -117,6 +125,10 @@
                     _isactive = category.IsActive;
                 }
             }
+            else
+            {
+                _sortorder = GetNextSortOrder(_parentid);
+            }
         }
         catch (Exception ex)
         {
@@ -127,7 +139,31 @@
 
     private async Task LoadCategories()
     {
-        _categories = await ClientCategoryService.GetCategoriesAsync(ModuleState.ModuleId);
+        _categories = (await ClientCategoryService.GetCategoriesAsync(ModuleState.ModuleId))
+            .OrderBy(c => c.ParentId)
+            .ThenBy(c => c.SortOrder)
+            .ThenBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private Task OnParentChanged()
+    {
+        if (_id == 0)
+        {
+            _sortorder = GetNextSortOrder(_parentid);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private int GetNextSortOrder(int parentId)
+    {
+        var maxSortOrder = _categories
+            .Where(c => c.ParentId == parentId)
+            .Select(c => (int?)c.SortOrder)
+            .Max() ?? 0;
+
+        return maxSortOrder + 1;
     }
 
     private void OnCategoryNameInput(ChangeEventArgs e)
@@ -211,7 +247,7 @@
         _name = string.Empty;
         _slug = string.Empty;
         _parentid = 0;
-        _sortorder = 0;
+        _sortorder = GetNextSortOrder(_parentid);
         _isactive = true;
         validated = false;
     }
@@ -229,6 +265,96 @@
         {
             await logger.LogError(ex, "Error Deleting Category {Category} {Error}", category, ex.Message);
             AddModuleMessage(Localizer["Message.DeleteError"], MessageType.Error);
+        }
+    }
+
+    private async Task MoveUp(Category category)
+    {
+        try
+        {
+            var previousItem = _categories
+                .Where(c => c.ParentId == category.ParentId && c.SortOrder < category.SortOrder)
+                .OrderByDescending(c => c.SortOrder)
+                .FirstOrDefault();
+
+            if (previousItem != null)
+            {
+                var current = await ClientCategoryService.GetCategoryAsync(category.CategoryId, ModuleState.ModuleId);
+                var previous = await ClientCategoryService.GetCategoryAsync(previousItem.CategoryId, ModuleState.ModuleId);
+
+                if (current != null && previous != null)
+                {
+                    int tempOrder = current.SortOrder;
+                    current.SortOrder = previous.SortOrder;
+                    previous.SortOrder = tempOrder;
+
+                    await ClientCategoryService.UpdateCategoryAsync(current);
+                    await ClientCategoryService.UpdateCategoryAsync(previous);
+
+                    await LoadCategories();
+
+                    if (_id == current.CategoryId)
+                    {
+                        _sortorder = current.SortOrder;
+                    }
+                    else if (_id == previous.CategoryId)
+                    {
+                        _sortorder = previous.SortOrder;
+                    }
+
+                    StateHasChanged();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await logger.LogError(ex, "Error Moving Category Up {Error}", ex.Message);
+            AddModuleMessage(Localizer["Message.SaveError"], MessageType.Error);
+        }
+    }
+
+    private async Task MoveDown(Category category)
+    {
+        try
+        {
+            var nextItem = _categories
+                .Where(c => c.ParentId == category.ParentId && c.SortOrder > category.SortOrder)
+                .OrderBy(c => c.SortOrder)
+                .FirstOrDefault();
+
+            if (nextItem != null)
+            {
+                var current = await ClientCategoryService.GetCategoryAsync(category.CategoryId, ModuleState.ModuleId);
+                var next = await ClientCategoryService.GetCategoryAsync(nextItem.CategoryId, ModuleState.ModuleId);
+
+                if (current != null && next != null)
+                {
+                    int tempOrder = current.SortOrder;
+                    current.SortOrder = next.SortOrder;
+                    next.SortOrder = tempOrder;
+
+                    await ClientCategoryService.UpdateCategoryAsync(current);
+                    await ClientCategoryService.UpdateCategoryAsync(next);
+
+                    await LoadCategories();
+
+                    if (_id == current.CategoryId)
+                    {
+                        _sortorder = current.SortOrder;
+                    }
+                    else if (_id == next.CategoryId)
+                    {
+                        _sortorder = next.SortOrder;
+                    }
+
+                    StateHasChanged();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await logger.LogError(ex, "Error Moving Category Down {Error}", ex.Message);
+            AddModuleMessage(Localizer["Message.SaveError"], MessageType.Error);
         }
     }
 }

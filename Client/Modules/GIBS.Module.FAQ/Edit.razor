@@ -24,20 +24,20 @@
             <Label Class="col-sm-3" For="answer" HelpText="Enter an answer" ResourceKey="Answer">Answer: </Label>
             <div class="col-sm-9">
                
-                <RichTextEditor id="htmlContent" Content="@_answer" @bind="@_answer" @ref="@RichTextEditorHtml"></RichTextEditor>
+                <RichTextEditor id="htmlContent" @key="_editorKey" Content="@_answer" @bind="@_answer" @ref="@RichTextEditorHtml" Style="height:240px"></RichTextEditor>
             </div>
         </div>
         <div class="row mb-1 align-items-center">
             <Label Class="col-sm-3" For="categoryid" HelpText="Select a category" ResourceKey="CategoryId">Category: </Label>
             <div class="col-sm-9">
-                <select id="categoryid" class="form-select" @bind="@_categoryid" @bind:after="OnCategoryChanged">
-                    <option value="0">-- Select Category --</option>
-                    <option value="-1">+ New Category...</option>
-                    @foreach (var category in _categories)
-                    {
-                        <option value="@category.CategoryId">@category.Name</option>
-                    }
-                </select>
+                <select id="categoryid" class="form-select" @bind="_categoryid" @bind:after="OnCategoryChanged" required>
+    <option value="">-- Select Category --</option>
+    <option value="-1">+ New Category...</option>
+    @foreach (var category in _categories)
+    {
+        <option value="@category.CategoryId">@category.Name</option>
+    }
+</select>
             </div>
         </div>
         @if (_categoryid == -1)
@@ -63,7 +63,7 @@
             <div class="col-sm-9">
                 <select id="status" class="form-select" @bind="@_status">
                     <option value="draft">Draft</option>
-                    <option value="published" selected>Published</option>
+                    <option value="published">Published</option>
                     <option value="archived">Archived</option>
                 </select>
             </div>
@@ -75,16 +75,17 @@
             </div>
         </div>
     </div>
-    <div class="text-center">
-        <button type="button" class="btn btn-success" @onclick="Save">@Localizer["Save"]</button>
-        <NavLink class="btn btn-secondary" href="@NavigateUrl()">@Localizer["Cancel"]</NavLink>
-        <ActionLink Action="ManageCategory" Security="SecurityAccessLevel.Edit" Text="Manage Categories" ResourceKey="ManageCategory" />
-    </div>
+
     <br /><br />
     @if (PageState.Action == "Edit")
     {
     <AuditInfo CreatedBy="@_createdby" CreatedOn="@_createdon" ModifiedBy="@_modifiedby" ModifiedOn="@_modifiedon"></AuditInfo>
     }
+    <div class="text-center mb-3">
+        <button type="button" class="btn btn-success" @onclick="Save">@Localizer["Save"]</button>
+        <NavLink class="btn btn-secondary" href="@NavigateUrl()">@Localizer["Cancel"]</NavLink>
+        <ActionLink Action="ManageCategory" Security="SecurityAccessLevel.Edit" Text="Manage Categories" ResourceKey="ManageCategory" />
+    </div>
 </form>
 
 @if (_faqs != null && _faqs.Count > 0)
@@ -94,20 +95,30 @@
     <Pager Items="@_faqs" SearchProperties="CategoryName,Question,Answer,Status,SortOrder">
         <Header>
             <th style="width: 1px;">&nbsp;</th>
+            <th style="width: 1px;">&nbsp;</th>
             <th>@Localizer["CategoryName"]</th>
             <th>@Localizer["Question"]</th>
             <th>@Localizer["Answer"]</th>
             <th>@Localizer["Status"]</th>
             <th>@Localizer["ViewCount"]</th>
+            <th style="width: 1px;">&nbsp;</th>
+            <th style="width: 1px;">&nbsp;</th>
             <th>@Localizer["SortOrder"]</th>
         </Header>
         <Row>
-            <td><ActionLink Action="Edit" Parameters="@($"id=" + context.FAQId.ToString())" ResourceKey="Edit" /></td>
+            <td><ActionLink IconName="pencil" IconOnly="true" Action="Edit" Parameters="@($"id=" + context.FAQId.ToString())" ResourceKey="Edit" /></td>
+            <td><ActionDialog Header="Delete FAQ" IconName="delete" IconOnly="true" Message="Are You Sure You Wish To Delete This FAQ?" Action="Delete" Security="SecurityAccessLevel.Edit" Class="btn btn-danger" OnClick="@(async () => await DeleteFAQ(context))" ResourceKey="Delete" Id="@context.FAQId.ToString()" /></td>
             <td>@context.CategoryName</td>
             <td>@context.Question</td>
             <td> @((MarkupString)@context.Answer)</td>
             <td>@CultureInfo.CurrentCulture.TextInfo.ToTitleCase((context.Status ?? "").ToLower())</td>
             <td class="text-center">@context.ViewCount</td>
+            <td>
+                <button type="button" class="btn btn-outline-primary" title="Move Up" @onclick="@(async () => await MoveUp(context))" disabled="@(context.SortOrder == _faqs.Where(f => f.CategoryId == context.CategoryId).Min(f => f.SortOrder))"><i class="oi oi-arrow-circle-top"></i></button>
+            </td>
+            <td>
+                <button type="button" class="btn btn-outline-primary" title="Move Down" @onclick="@(async () => await MoveDown(context))" disabled="@(context.SortOrder == _faqs.Where(f => f.CategoryId == context.CategoryId).Max(f => f.SortOrder))"><i class="oi oi-arrow-circle-bottom"></i></button>
+            </td>
             <td class="text-center">@context.SortOrder</td>
         </Row>
     </Pager>
@@ -115,6 +126,8 @@
 
 @code {
     public override SecurityAccessLevel SecurityAccessLevel => SecurityAccessLevel.Edit;
+    public override string RenderMode => RenderModes.Interactive; 
+    public override bool UseAdminContainer => false;
 
     public override string Actions => "Add,Edit";
 
@@ -131,9 +144,9 @@
     private int _id;
     private string _question;
     private string _answer;
-    private int _categoryid;
+    private int? _categoryid;
     private int _sortorder;
-    private string _status = "draft";
+    private string _status = "published";
     private int _viewcount;
     private string _newCategoryName;
     private string _createdby;
@@ -143,38 +156,33 @@
     private List<Category> _categories = new();
     private List<FAQ> _faqs = new();
     private RichTextEditor RichTextEditorHtml;
+    private int _editorKey;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
             _categories = await ClientCategoryService.GetCategoriesAsync(ModuleState.ModuleId);
-         //   _faqs = await ClientFAQService.GetFAQsAsync(ModuleState.ModuleId);
-            var faqs = await ClientFAQService.GetFAQsAsync(ModuleState.ModuleId);
+            await LoadFAQs();
 
-            _faqs = faqs
-              //  .Where(f => string.Equals(f.Status, "published", StringComparison.OrdinalIgnoreCase))
-                .OrderBy(f => f.CategorySortOrder)
-                .ThenBy(f => f.SortOrder)
-                .ThenBy(f => f.Question, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            if (PageState.Action == "Edit")
+            if (PageState.QueryString.ContainsKey("id") && int.TryParse(PageState.QueryString["id"], out _id))
             {
-                _id = Int32.Parse(PageState.QueryString["id"]);
-                FAQ FAQ = await ClientFAQService.GetFAQAsync(_id, ModuleState.ModuleId);
-                if (FAQ != null)
+                if (PageState.Action == "Edit")
                 {
-                    _question = FAQ.Question;
-                    _answer = FAQ.Answer;
-                    _categoryid = FAQ.CategoryId;
-                    _sortorder = FAQ.SortOrder;
-                    _status = FAQ.Status;
-                    _viewcount = FAQ.ViewCount;
-                    _createdby = FAQ.CreatedBy;
-                    _createdon = FAQ.CreatedOn;
-                    _modifiedby = FAQ.ModifiedBy;
-                    _modifiedon = FAQ.ModifiedOn;
+                    FAQ FAQ = await ClientFAQService.GetFAQAsync(_id, ModuleState.ModuleId);
+                    if (FAQ != null)
+                    {
+                        _question = FAQ.Question;
+                        _answer = FAQ.Answer;
+                        _categoryid = FAQ.CategoryId;
+                        _sortorder = FAQ.SortOrder;
+                        _status = FAQ.Status;
+                        _viewcount = FAQ.ViewCount;
+                        _createdby = FAQ.CreatedBy;
+                        _createdon = FAQ.CreatedOn;
+                        _modifiedby = FAQ.ModifiedBy;
+                        _modifiedon = FAQ.ModifiedOn;
+                    }
                 }
             }
         }
@@ -185,13 +193,40 @@
         }
     }
 
-    private Task OnCategoryChanged()
+    private async Task LoadFAQs()
     {
-        if (_categoryid != -1)
+        var faqs = await ClientFAQService.GetFAQsAsync(ModuleState.ModuleId);
+
+        _faqs = faqs
+            .OrderBy(f => f.CategorySortOrder)
+            .ThenBy(f => f.SortOrder)
+            .ThenBy(f => f.Question, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private async Task OnCategoryChanged()
+    {
+        if (_categoryid == null)
         {
-            _newCategoryName = null;
+            _sortorder = 1;
+            return;
         }
-        return Task.CompletedTask;
+
+        if (_categoryid == -1)
+        {
+            _sortorder = 1;
+            return;
+        }
+
+        _newCategoryName = null;
+
+     //   var faqs = await ClientFAQService.GetFAQsAsync(ModuleState.ModuleId);
+        var maxSortOrder = _faqs
+            .Where(f => f.CategoryId == _categoryid.Value)
+            .Select(f => (int?)f.SortOrder)
+            .Max() ?? 0;
+
+        _sortorder = maxSortOrder + 1;
     }
 
     private async Task CreateCategory()
@@ -218,6 +253,7 @@
             _categories = await ClientCategoryService.GetCategoriesAsync(ModuleState.ModuleId);
             _categoryid = category.CategoryId;
             _newCategoryName = null;
+            _sortorder = 1;
             StateHasChanged();
         }
         catch (Exception ex)
@@ -231,6 +267,11 @@
     {
         try
         {
+            if (_categoryid == null)
+            {
+                AddModuleMessage("Category is required.", MessageType.Warning);
+                return;
+            }
             validated = true;
             var interop = new Oqtane.UI.Interop(JSRuntime);
             if (await interop.FormValid(form))
@@ -241,7 +282,7 @@
                     FAQ.ModuleId = ModuleState.ModuleId;
                     FAQ.Question = _question;
                     FAQ.Answer = await RichTextEditorHtml.GetHtml();
-                    FAQ.CategoryId = _categoryid;
+                    FAQ.CategoryId = _categoryid.Value;
                     FAQ.SortOrder = _sortorder;
                     FAQ.Status = _status;
                     FAQ.ViewCount = _viewcount;
@@ -253,20 +294,23 @@
                     FAQ FAQ = await ClientFAQService.GetFAQAsync(_id, ModuleState.ModuleId);
                     FAQ.Question = _question;
                     FAQ.Answer = await RichTextEditorHtml.GetHtml(); 
-                    FAQ.CategoryId = _categoryid;
+                    FAQ.CategoryId = _categoryid.Value;
                     FAQ.SortOrder = _sortorder;
                     FAQ.Status = _status;
                     FAQ.ViewCount = _viewcount;
                     await ClientFAQService.UpdateFAQAsync(FAQ);
                     await logger.LogInformation("FAQ Updated {FAQ}", FAQ);
                 }
+                ClearModuleMessage();
 
                 _id = 0;
                 _question = string.Empty;
                 _answer = string.Empty;
-                _categoryid = 0;
-                _sortorder = 0;
-                _status = "draft";
+                RichTextEditorHtml = null;
+                _categoryid = null;
+                _editorKey++;
+                _sortorder = 1;
+                _status = "published";
                 _viewcount = 0;
                 _newCategoryName = null;
                 _createdby = null;
@@ -274,18 +318,9 @@
                 _modifiedby = null;
                 _modifiedon = default;
                 validated = false;
+                await InvokeAsync(StateHasChanged);
 
-               // _faqs = await ClientFAQService.GetFAQsAsync(ModuleState.ModuleId);
-                var faqs = await ClientFAQService.GetFAQsAsync(ModuleState.ModuleId);
-
-                _faqs = faqs
-                  //  .Where(f => string.Equals(f.Status, "published", StringComparison.OrdinalIgnoreCase))
-                    .OrderBy(f => f.CategorySortOrder)
-                    .ThenBy(f => f.SortOrder)
-                    .ThenBy(f => f.Question, StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-
-                NavigationManager.NavigateTo(NavigateUrl(PageState.ModuleId,"Add"), true);
+                await LoadFAQs();
             }
             else
             {
@@ -295,6 +330,132 @@
         catch (Exception ex)
         {
             await logger.LogError(ex, "Error Saving FAQ {Error}", ex.Message);
+            AddModuleMessage(Localizer["Message.SaveError"], MessageType.Error);
+        }
+    }
+
+    private async Task DeleteFAQ(FAQ faq)
+    {
+        try
+        {
+            await ClientFAQService.DeleteFAQAsync(faq.FAQId, ModuleState.ModuleId);
+            await logger.LogInformation("FAQ Deleted {FAQId}", faq.FAQId);
+
+            if (_id == faq.FAQId)
+            {
+                _id = 0;
+                _question = string.Empty;
+                _answer = string.Empty;
+                RichTextEditorHtml = null;
+                _categoryid = null;
+                _editorKey++;
+                _sortorder = 1;
+                _status = "published";
+                _viewcount = 0;
+                _newCategoryName = null;
+                _createdby = null;
+                _createdon = default;
+                _modifiedby = null;
+                _modifiedon = default;
+                validated = false;
+            }
+
+            await LoadFAQs();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            await logger.LogError(ex, "Error Deleting FAQ {FAQId} {Error}", faq.FAQId, ex.Message);
+            AddModuleMessage(Localizer["Message.DeleteError"], MessageType.Error);
+        }
+    }
+
+    private async Task MoveUp(FAQ faq)
+    {
+        try
+        {
+            var previousItem = _faqs
+                .Where(f => f.CategoryId == faq.CategoryId && f.SortOrder < faq.SortOrder)
+                .OrderByDescending(f => f.SortOrder)
+                .FirstOrDefault();
+
+            if (previousItem != null)
+            {
+                var current = await ClientFAQService.GetFAQAsync(faq.FAQId, ModuleState.ModuleId);
+                var previous = await ClientFAQService.GetFAQAsync(previousItem.FAQId, ModuleState.ModuleId);
+
+                if (current != null && previous != null)
+                {
+                    int tempOrder = current.SortOrder;
+                    current.SortOrder = previous.SortOrder;
+                    previous.SortOrder = tempOrder;
+
+                    await ClientFAQService.UpdateFAQAsync(current);
+                    await ClientFAQService.UpdateFAQAsync(previous);
+
+                    await LoadFAQs();
+
+                    if (_id == current.FAQId)
+                    {
+                        _sortorder = current.SortOrder;
+                    }
+                    else if (_id == previous.FAQId)
+                    {
+                        _sortorder = previous.SortOrder;
+                    }
+
+                    StateHasChanged();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await logger.LogError(ex, "Error Moving FAQ Up {Error}", ex.Message);
+            AddModuleMessage(Localizer["Message.SaveError"], MessageType.Error);
+        }
+    }
+
+    private async Task MoveDown(FAQ faq)
+    {
+        try
+        {
+            var nextItem = _faqs
+                .Where(f => f.CategoryId == faq.CategoryId && f.SortOrder > faq.SortOrder)
+                .OrderBy(f => f.SortOrder)
+                .FirstOrDefault();
+
+            if (nextItem != null)
+            {
+                var current = await ClientFAQService.GetFAQAsync(faq.FAQId, ModuleState.ModuleId);
+                var next = await ClientFAQService.GetFAQAsync(nextItem.FAQId, ModuleState.ModuleId);
+
+                if (current != null && next != null)
+                {
+                    int tempOrder = current.SortOrder;
+                    current.SortOrder = next.SortOrder;
+                    next.SortOrder = tempOrder;
+
+                    await ClientFAQService.UpdateFAQAsync(current);
+                    await ClientFAQService.UpdateFAQAsync(next);
+
+                    await LoadFAQs();
+
+                    if (_id == current.FAQId)
+                    {
+                        _sortorder = current.SortOrder;
+                    }
+                    else if (_id == next.FAQId)
+                    {
+                        _sortorder = next.SortOrder;
+                    }
+
+                    StateHasChanged();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await logger.LogError(ex, "Error Moving FAQ Down {Error}", ex.Message);
             AddModuleMessage(Localizer["Message.SaveError"], MessageType.Error);
         }
     }

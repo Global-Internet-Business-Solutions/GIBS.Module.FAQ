@@ -11,6 +11,8 @@ namespace GIBS.Module.FAQ.Services
 
         Task<Models.FAQ> AddFAQAsync(Models.FAQ FAQ);
 
+        Task<Models.FAQ> SubmitQuestionAsync(Models.FAQ FAQ);
+
         Task<Models.FAQ> UpdateFAQAsync(Models.FAQ FAQ);
 
         Task DeleteFAQAsync(int FAQId, int ModuleId);

@@ -19,10 +19,12 @@ else
         <ActionLink Action="ManageCategory" Security="SecurityAccessLevel.Edit" Text="Manage Categories" ResourceKey="ManageCategory" />
     </div>
 
-    @if (_allFAQs.Count != 0)
-    {
-        <section class="py-4 bg-light rounded-3 mt-3">
-            <div class="container">
+    <section class="py-4 bg-light rounded-3 mt-3">
+        <div class="container">
+            <div class="text-end mb-3"><ActionLink Action="AskQuestion" Security="SecurityAccessLevel.View" Class="btn btn-sm btn-outline-primary" Text="Ask Your Question" ResourceKey="AskQuestion" /></div>
+
+            @if (_allFAQs.Count != 0)
+            {
                 <div class="row justify-content-center mb-4">
                     <div class="col-lg-10 text-center">
                         <h2 class="mb-2">@Localizer["Frequently Asked Questions"]</h2>
@@ -84,13 +86,13 @@ else
                         }
                     </div>
                 </div>
-            </div>
-        </section>
-    }
-    else
-    {
-        <p class="mt-3">@Localizer["Message.DisplayNone"]</p>
-    }
+            }
+            else
+            {
+                <p class="mt-3 mb-0">@Localizer["Message.DisplayNone"]</p>
+            }
+        </div>
+    </section>
 }
 
 @code {

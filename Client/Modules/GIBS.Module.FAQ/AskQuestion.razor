@@ -1,0 +1,139 @@
+﻿@using GIBS.Module.FAQ.Models
+@using GIBS.Module.FAQ.Services
+
+@namespace GIBS.Module.FAQ
+@inherits ModuleBase
+@inject IFAQService ClientFAQService
+@inject ICategoryService ClientCategoryService
+@inject IStringLocalizer<AskQuestion> Localizer
+
+<div class="container py-3">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-4">
+                    <h3 class="mb-3">Ask a Question</h3>
+                    <p class="text-muted">Submit your question for review. An administrator can publish it to the FAQ list later.</p>
+
+                    <form @ref="form" class="@(validated ? "was-validated" : "needs-validation")" novalidate>
+                        <div class="mb-3">
+                            <label class="form-label" for="question">Your Question</label>
+                            <textarea id="question" class="form-control" rows="4" @bind="_question" required></textarea>
+                            <div class="invalid-feedback">A question is required.</div>
+                        </div>
+
+                        @if (_categories.Count > 0)
+                        {
+                            <div class="mb-3">
+                                <label class="form-label" for="category">Category</label>
+                                <select id="category" class="form-select" @bind="_categoryId" required>
+                                    <option value="">Select a category</option>
+                                    @foreach (var category in _categories)
+                                    {
+                                        <option value="@category.CategoryId">@category.Name</option>
+                                    }
+                                </select>
+                                <div class="invalid-feedback">A category is required.</div>
+                            </div>
+                        }
+
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-primary" @onclick="SubmitQuestion" disabled="@(_submitting || _submitted)">@(_submitting ? "Submitting..." : _submitted ? "Submitted" : "Submit Question")</button>
+                            <NavLink class="btn btn-outline-secondary" href="@NavigateUrl()">Cancel</NavLink>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    public override SecurityAccessLevel SecurityAccessLevel => SecurityAccessLevel.View;
+    public override string RenderMode => RenderModes.Interactive;
+    public override string Actions => "AskQuestion";
+    public override string Title => "Ask a Question";
+
+    private ElementReference form;
+    private bool validated;
+    private bool _submitting;
+    private bool _submitted;
+    private string _question;
+    private int? _categoryId;
+    private List<Category> _categories = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _categories = (await ClientCategoryService.GetCategoriesAsync(ModuleState.ModuleId))
+                .Where(c => c.IsActive)
+                .OrderBy(c => c.SortOrder)
+                .ThenBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            await logger.LogError(ex, "Error Loading Categories {Error}", ex.Message);
+            AddModuleMessage(Localizer["Message.LoadError"], MessageType.Error);
+        }
+    }
+
+    private async Task SubmitQuestion()
+    {
+        try
+        {
+            validated = true;
+            var interop = new Oqtane.UI.Interop(JSRuntime);
+            if (!await interop.FormValid(form))
+            {
+                AddModuleMessage(Localizer["Message_SaveValidation"], MessageType.Warning);
+                return;
+            }
+
+            if (_categoryId == null)
+            {
+                AddModuleMessage("Category is required.", MessageType.Warning);
+                return;
+            }
+
+            _submitting = true;
+            var faq = new FAQ
+            {
+                ModuleId = ModuleState.ModuleId,
+                Question = _question?.Trim(),
+                Answer = string.Empty,
+                CategoryId = _categoryId.Value,
+                SortOrder = 0,
+                Status = "draft",
+                ViewCount = 0
+            };
+
+            var submittedFaq = await ClientFAQService.SubmitQuestionAsync(faq);
+
+            if (submittedFaq != null)
+            {
+                _question = string.Empty;
+                _categoryId = null;
+                validated = false;
+                _submitted = true;
+                ClearModuleMessage();
+                AddModuleMessage("Thank you. Your question has been submitted for review.", MessageType.Success);
+
+            }
+            else
+            {
+                AddModuleMessage("Unable to submit your question. Category is required.", MessageType.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            await logger.LogError(ex, "Error Submitting FAQ Question {Error}", ex.Message);
+            AddModuleMessage("Unable to submit your question.", MessageType.Error);
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+}

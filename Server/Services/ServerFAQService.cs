@@ -69,6 +69,26 @@ namespace GIBS.Module.FAQ.Services
             return Task.FromResult(FAQ);
         }
 
+        public Task<Models.FAQ> SubmitQuestionAsync(Models.FAQ FAQ)
+        {
+            if (_userPermissions.IsAuthorized(_accessor.HttpContext.User, _alias.SiteId, EntityNames.Module, FAQ.ModuleId, PermissionNames.View))
+            {
+                FAQ.FAQId = 0;
+                FAQ.Answer ??= string.Empty;
+                FAQ.Status = string.IsNullOrWhiteSpace(FAQ.Status) ? "draft" : FAQ.Status;
+                FAQ.SortOrder = 0;
+                FAQ.ViewCount = 0;
+                FAQ = _FAQRepository.AddFAQ(FAQ);
+                _logger.Log(LogLevel.Information, this, LogFunction.Create, "FAQ Question Submitted {FAQ}", FAQ);
+            }
+            else
+            {
+                _logger.Log(LogLevel.Error, this, LogFunction.Security, "Unauthorized FAQ Submit Attempt {FAQ}", FAQ);
+                FAQ = null;
+            }
+            return Task.FromResult(FAQ);
+        }
+
         public Task<Models.FAQ> UpdateFAQAsync(Models.FAQ FAQ)
         {
             if (_userPermissions.IsAuthorized(_accessor.HttpContext.User, _alias.SiteId, EntityNames.Module, FAQ.ModuleId, PermissionNames.Edit))

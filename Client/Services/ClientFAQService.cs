@@ -30,6 +30,11 @@ namespace GIBS.Module.FAQ.Services
             return await PostJsonAsync<Models.FAQ>(CreateAuthorizationPolicyUrl($"{Apiurl}", EntityNames.Module, FAQ.ModuleId), FAQ);
         }
 
+        public async Task<Models.FAQ> SubmitQuestionAsync(Models.FAQ FAQ)
+        {
+            return await PostJsonAsync<Models.FAQ>(CreateAuthorizationPolicyUrl($"{Apiurl}/submit", EntityNames.Module, FAQ.ModuleId), FAQ);
+        }
+
         public async Task<Models.FAQ> UpdateFAQAsync(Models.FAQ FAQ)
         {
             return await PutJsonAsync<Models.FAQ>(CreateAuthorizationPolicyUrl($"{Apiurl}/{FAQ.FAQId}", EntityNames.Module, FAQ.ModuleId), FAQ);
