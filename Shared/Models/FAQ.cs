@@ -16,6 +16,10 @@ namespace GIBS.Module.FAQ.Models
         public int SortOrder { get; set; }
         public string Status { get; set; } //(status IN ('draft', 'published', 'archived'))
         public int ViewCount { get; set; } = 0;
+        [NotMapped]
+        public string SubmitterName { get; set; }
+        [NotMapped]
+        public string SubmitterEmail { get; set; }
 
         [NotMapped]
         public string CategoryName { get; set; } // Not mapped, for display only

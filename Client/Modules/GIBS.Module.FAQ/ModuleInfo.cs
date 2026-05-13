@@ -9,9 +9,9 @@ namespace GIBS.Module.FAQ
         {
             Name = "FAQ",
             Description = "FAQ Module for Oqtane",
-            Version = "1.0.0",
+            Version = "1.0.1",
             ServerManagerType = "GIBS.Module.FAQ.Manager.FAQManager, GIBS.Module.FAQ.Server.Oqtane",
-            ReleaseVersions = "1.0.0",
+            ReleaseVersions = "1.0.0,1.0.1",
             Dependencies = "GIBS.Module.FAQ.Shared.Oqtane",
             PackageName = "GIBS.Module.FAQ" 
         };

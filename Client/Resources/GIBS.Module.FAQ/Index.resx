@@ -147,4 +147,7 @@
   <data name="ManageCategory.Text" xml:space="preserve">
     <value>Manage Categories</value>
   </data>
+  <data name="FrequentlyAskedQuestions" xml:space="preserve">
+    <value>Frequently Asked Questions</value>
+  </data>
 </root>

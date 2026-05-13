@@ -7,6 +7,7 @@
 @inject ICategoryService ClientCategoryService
 @inject NavigationManager NavigationManager
 @inject IStringLocalizer<Index> Localizer
+@inject ISettingService SettingService
 
 @if (_FAQs == null)
 {
@@ -21,17 +22,27 @@ else
 
     <section class="py-4 bg-light rounded-3 mt-3">
         <div class="container">
-            <div class="text-end mb-3"><ActionLink Action="AskQuestion" Security="SecurityAccessLevel.View" Class="btn btn-sm btn-outline-primary" Text="Ask Your Question" ResourceKey="AskQuestion" /></div>
+            @if (_enableAskQuestion)
+            {
+                <div class="text-end mb-3"><ActionLink Action="AskQuestion" Security="SecurityAccessLevel.View" Class="btn btn-sm btn-outline-primary" Text="Ask Your Question" ResourceKey="AskQuestion" /></div>
+            }
 
             @if (_allFAQs.Count != 0)
             {
                 <div class="row justify-content-center mb-4">
                     <div class="col-lg-10 text-center">
-                        <h2 class="mb-2">@Localizer["Frequently Asked Questions"]</h2>
+                        <h2 class="mb-2">@Localizer["FrequentlyAskedQuestions"]</h2>
                     </div>
                 </div>
-
-                <div class="row justify-content-center">
+                @if (!string.IsNullOrWhiteSpace(_introText))
+                {
+                    <div class="row justify-content-center mb-4">
+                        <div class="col-lg-10 text-center">
+                            <p>@_introText</p>
+                        </div>
+                    </div>
+                }
+                    <div class="row justify-content-center">
                     <div class="col-lg-10 text-center mb-3">
                         <a class="btn btn-outline-secondary btn-sm me-2 mb-2 @(string.IsNullOrEmpty(_selectedCategorySlug) ? "active" : "")" href="@NavigateUrl()">All</a>
                        
@@ -103,6 +114,8 @@ else
     List<Category> _categories = new();
     string _selectedCategorySlug;
     int? _expandedFAQId;
+    string _introText;
+    private bool _enableAskQuestion;
 
     public override List<Resource> Resources => new List<Resource>()
     {
@@ -114,7 +127,11 @@ else
     {
         try
         {
+            _introText = SettingService.GetSetting(ModuleState.Settings, "IntroText", string.Empty);
+            _enableAskQuestion = bool.Parse(SettingService.GetSetting(ModuleState.Settings, "EnableAskQuestion", "true"));
+
             _categories = await ClientCategoryService.GetCategoriesAsync(ModuleState.ModuleId);
+
             var faqs = await ClientFAQService.GetFAQsAsync(ModuleState.ModuleId);
             _allFAQs = faqs
                 .Where(f => string.Equals(f.Status, "published", StringComparison.OrdinalIgnoreCase))
