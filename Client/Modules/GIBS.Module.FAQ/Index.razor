@@ -1,5 +1,8 @@
 @using GIBS.Module.FAQ.Services
 @using GIBS.Module.FAQ.Models
+@using Oqtane.Licensing
+@using Microsoft.Extensions.Localization
+@using System.Globalization
 
 @namespace GIBS.Module.FAQ
 @inherits ModuleBase
@@ -9,9 +12,20 @@
 @inject IStringLocalizer<Index> Localizer
 @inject ISettingService SettingService
 
+
+<LicenseView PackageName="@ModuleState.ModuleDefinition.PackageName">
+    <Licensed>
+        
+    </Licensed>
+    <NotLicensed>
+        <p>If you're looking for customization options, please reach out! <a href="https://gibs.net/contact">Contact Us</a></p>
+    </NotLicensed>
+</LicenseView>
+
+
 @if (_FAQs == null)
 {
-    <p><em>Loading...</em></p>
+    <p><em>@T("Message.Loading")</em></p>
 }
 else
 {
@@ -31,7 +45,8 @@ else
             {
                 <div class="row justify-content-center mb-4">
                     <div class="col-lg-10 text-center">
-                        <h2 class="mb-2">@Localizer["FrequentlyAskedQuestions"]</h2>
+                        <h2 class="mb-2">@T("FrequentlyAskedQuestions")</h2>
+                        @* <div class="small text-muted">diag: CurrentCulture=@CultureInfo.CurrentCulture.Name | CurrentUICulture=@CultureInfo.CurrentUICulture.Name | SiteCulture=@PageState?.Site?.CultureCode | UserCulture=@PageState?.User?.CultureCode</div> *@
                     </div>
                 </div>
                 @if (!string.IsNullOrWhiteSpace(_introText))
@@ -44,7 +59,7 @@ else
                 }
                     <div class="row justify-content-center">
                     <div class="col-lg-10 text-center mb-3">
-                        <a class="btn btn-outline-secondary btn-sm me-2 mb-2 @(string.IsNullOrEmpty(_selectedCategorySlug) ? "active" : "")" href="@NavigateUrl()">All</a>
+                        <a class="btn btn-outline-secondary btn-sm me-2 mb-2 @(string.IsNullOrEmpty(_selectedCategorySlug) ? "active" : "")" href="@NavigateUrl()">@T("Filter.All")</a>
                        
                         @foreach (var category in _categories)
                         {
@@ -58,7 +73,7 @@ else
                         @foreach (var categoryGroup in _FAQs.GroupBy(faq => new
                         {
                             faq.CategoryId,
-                            CategoryName = string.IsNullOrWhiteSpace(faq.CategoryName) ? "Uncategorized" : faq.CategoryName
+                            CategoryName = string.IsNullOrWhiteSpace(faq.CategoryName) ? T("Category.Uncategorized") : faq.CategoryName
                         }))
                         {
                             var accordionId = $"faqAccordion{categoryGroup.Key.CategoryId}";
@@ -83,7 +98,7 @@ else
                                             <div class="accordion-body">
                                                 @if (string.IsNullOrWhiteSpace(faq.Answer))
                                                 {
-                                                    <span class="text-muted">No answer provided.</span>
+                                                    <span class="text-muted">@T("Message.NoAnswerProvided")</span>
                                                 }
                                                 else
                                                 {
@@ -100,7 +115,7 @@ else
             }
             else
             {
-                <p class="mt-3 mb-0">@Localizer["Message.DisplayNone"]</p>
+                <p class="mt-3 mb-0">@T("Message.DisplayNone")</p>
             }
         </div>
     </section>
@@ -176,8 +191,13 @@ else
         catch (Exception ex)
         {
             await logger.LogError(ex, "Error Loading FAQ {Error}", ex.Message);
-            AddModuleMessage(Localizer["Message.LoadError"], MessageType.Error);
+            AddModuleMessage(T("Message.LoadError"), MessageType.Error);
         }
+    }
+
+    private LocalizedString T(string name)
+    {
+        return Localizer[name];
     }
 
     private void ApplyFilter()
@@ -192,7 +212,7 @@ else
         _FAQs = (category == null)
             ? new List<FAQ>()
             : _allFAQs.Where(x => x.CategoryId == category.CategoryId).ToList();
-        SetPageTitle($"{category?.Name} FAQs");
+        SetPageTitle($"{category?.Name} {T("FrequentlyAskedQuestions")}");
     }
 
     private string GetFaqUrl(int faqId)

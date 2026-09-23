@@ -150,4 +150,16 @@
   <data name="FrequentlyAskedQuestions" xml:space="preserve">
     <value>Frequently Asked Questions</value>
   </data>
+  <data name="Message.Loading" xml:space="preserve">
+    <value>Loading...</value>
+  </data>
+  <data name="Filter.All" xml:space="preserve">
+    <value>All</value>
+  </data>
+  <data name="Category.Uncategorized" xml:space="preserve">
+    <value>Uncategorized</value>
+  </data>
+  <data name="Message.NoAnswerProvided" xml:space="preserve">
+    <value>No answer provided.</value>
+  </data>
 </root>
